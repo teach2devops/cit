@@ -1,0 +1,48 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+jobs:
+  Deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+ 
+
+      - name: Set up AWS CLI
+        run: |
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_DEFAULT_REGION=${{ secrets.AWS_DEFAULT_REGION }}" >> $GITHUB_ENV
+
+ 
+
+      - name: Build & Deploy
+        env:
+          PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOSTNAME: ${{ secrets.SSH_HOST }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          JAR_FILE: ${{ secrets.JAR_FILE }}
+        run: |
+          # Create private key file and set permissions
+          echo "$PRIVATE_KEY" > private_key
+          chmod 600 private_key
+
+          # Configure AWS CLI
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region $AWS_DEFAULT_REGION
+
+          # Download JAR file from S3
+          aws s3 cp s3://${S3_BUCKET}/${JAR_FILE} /path/on/ec2/
+
+          # Copy JAR file to EC2 instance
+          scp -i private_key /path/on/ec2/${JAR_FILE} ${USER_NAME}@${HOSTNAME}:/path/on/ec2/
+
+          # SSH into the EC2 instance and run the Java JAR command
+          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "java -jar /path/on/
